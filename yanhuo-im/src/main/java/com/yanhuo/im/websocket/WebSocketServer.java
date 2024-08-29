@@ -23,7 +23,7 @@ public class WebSocketServer {
     private static final AtomicInteger ONLINE_NUM = new AtomicInteger();
 
     //concurrent包的线程安全Set，用来存放每个客户端对应的WebSocketServer对象。
-    private  static final ConcurrentHashMap<String, Session> SESSION_POOLS = new ConcurrentHashMap<>();
+    private static final ConcurrentHashMap<String, Session> SESSION_POOLS = new ConcurrentHashMap<>();
 
     private final Object lockObj = new Object();
 

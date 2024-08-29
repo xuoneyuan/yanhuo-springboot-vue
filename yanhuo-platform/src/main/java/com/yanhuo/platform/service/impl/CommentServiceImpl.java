@@ -4,6 +4,7 @@ import com.baomidou.mybatisplus.core.conditions.query.QueryWrapper;
 import com.baomidou.mybatisplus.core.metadata.IPage;
 import com.baomidou.mybatisplus.extension.plugins.pagination.Page;
 import com.baomidou.mybatisplus.extension.service.impl.ServiceImpl;
+import com.sun.org.apache.xml.internal.security.exceptions.Base64DecodingException;
 import com.yanhuo.common.auth.AuthContextHolder;
 import com.yanhuo.common.utils.ConvertUtils;
 import com.yanhuo.platform.im.ChatUtils;
@@ -206,7 +207,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentDao, Comment> impleme
         List<Comment> oneCommentList = oneCommentPage.getRecords();
         if (!oneCommentList.isEmpty()) {
             Set<String> oneUids = oneCommentList.stream().map(Comment::getUid).collect(Collectors.toSet());
-            long onetotal = oneCommentPage.getTotal();
+            long oneTotal = oneCommentPage.getTotal();
             String currentUid = AuthContextHolder.getUserId();
             //得到对应的二级评论
             List<String> oneIds = oneCommentList.stream().map(Comment::getId).collect(Collectors.toList());
@@ -221,7 +222,10 @@ public class CommentServiceImpl extends ServiceImpl<CommentDao, Comment> impleme
             List<LikeOrCollection> likeOrCollections = likeOrCollectionService.list(new QueryWrapper<LikeOrCollection>().eq("uid", currentUid).eq("type", 2));
             List<String> likeComments = likeOrCollections.stream().map(LikeOrCollection::getLikeOrCollectionId).collect(Collectors.toList());
 
-            Set<String> replyUids = twoCommentList.stream().map(Comment::getReplyUid).collect(Collectors.toSet());
+            Set<String> replyUids = twoCommentList.stream()
+                    .map(Comment::getReplyUid)
+                    .filter(Objects::nonNull)
+                    .collect(Collectors.toSet());
             Map<String, User> replyUserMap = new HashMap<>(16);
             if (!replyUids.isEmpty()) {
                 List<User> replyUsers = userService.listByIds(replyUids);
@@ -265,7 +269,7 @@ public class CommentServiceImpl extends ServiceImpl<CommentDao, Comment> impleme
             }
 
             result.setRecords(commentVoList);
-            result.setTotal(onetotal);
+            result.setTotal(oneTotal);
         }
         return result;
     }
@@ -336,7 +340,29 @@ public class CommentServiceImpl extends ServiceImpl<CommentDao, Comment> impleme
     }
 
     @Override
+    @Transactional(rollbackFor = Exception.class)
     public void deleteCommentById(String commentId) {
+        Comment comment = this.getById(commentId);
+        if("0".equals(comment.getPid())){
+            List<Comment> childCommentList = this.list(new QueryWrapper<Comment>()
+                    .eq("pid",commentId));
+            if(!childCommentList.isEmpty()){
+                List<String> chileCommentIds = childCommentList.stream().map(Comment::getId).collect(Collectors.toList());
+                this.removeByIds(childCommentList);
+            }
+        }else{
+            Comment parentComment = this.getById(comment.getPid());
+            if(parentComment!=null){
+                parentComment.setTwoCommentCount(parentComment.getTwoCommentCount()-1);
+                this.updateById(parentComment);
+            }
+        }
+        Note note = noteService.getById(comment.getNid());
+        if(note!=null){
+            note.setCommentCount(note.getCommentCount()-1);
+            noteService.updateById(note);
+        }
+        this.removeById(commentId);
 
     }
 }

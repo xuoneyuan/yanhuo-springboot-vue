@@ -64,7 +64,6 @@ public interface CommentService extends IService<Comment> {
      * 自动滚动到当前评论
      *
      * @param commentId 评论id
-     * @param noteId    笔记id
      * @return resMap
      */
     Map<String, Object> scrollComment(String commentId);
