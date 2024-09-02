@@ -119,16 +119,51 @@ public class UserServiceImpl extends ServiceImpl<UserDao, User> implements UserS
 
     @Override
     public User updateUser(User user) {
-        return null;
+        User existUser = this.getById(user.getId());
+        if(existUser==null){
+            throw new RuntimeException("用户不存在");
+        }
+        boolean id = this.updateById(user);
+        if(!id){
+            throw new RuntimeException("更新用户信息失败");
+        }
+        return this.getById(user.getId());
     }
 
     @Override
     public Page<FollowerVo> getUserPageByKeyword(long currentPage, long pageSize, String keyword) {
-        return null;
+        // 构建分页对象
+        Page<User> userPage = new Page<>(currentPage, pageSize);
+
+        // 构建查询条件，模糊搜索用户名或其他字段
+        QueryWrapper<User> queryWrapper = new QueryWrapper<>();
+        queryWrapper.like("username", keyword).or().like("email", keyword);
+
+        // 执行分页查询
+        Page<User> resultPage = this.page(userPage, queryWrapper);
+
+        // 将查询结果转换为 FollowerVo 类型的分页结果
+        List<FollowerVo> followerVos = resultPage.getRecords().stream()
+                .map(user -> {
+                    FollowerVo followerVo = new FollowerVo();
+                    followerVo.setUid(user.getId());
+                    followerVo.setUsername(user.getUsername());
+                    followerVo.setAvatar(user.getAvatar());
+                    return followerVo;
+                }).collect(Collectors.toList());
+
+        // 构建最终的分页对象并返回
+        Page<FollowerVo> followerVoPage = new Page<>(currentPage, pageSize);
+        followerVoPage.setRecords(followerVos);
+        followerVoPage.setTotal(resultPage.getTotal());
+
+        return followerVoPage;
     }
 
     @Override
     public void saveUserSearchRecord(String keyword) {
+
+        String userId = AuthContextHolder.getUserId();
 
     }
 }

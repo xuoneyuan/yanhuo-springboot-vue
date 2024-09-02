@@ -95,7 +95,57 @@ public class FollowerServiceImpl extends ServiceImpl<FollowerDao, Follower> impl
 
     @Override
     public Page<FollowerVo> getFriendPage(long currentPage, long pageSize, Integer type) {
-        return null;
+
+        String userId = AuthContextHolder.getUserId();
+
+        Page<Follower> page = new Page<>((int) currentPage, (int) pageSize);
+
+        QueryWrapper<Follower> queryWrapper = new QueryWrapper<>();
+
+        if(type!=null){
+            // type = 1 表示获取我关注的人
+            if(type==1){
+                queryWrapper.eq("uid",userId);
+            }else if(type==2){
+                // type = 2 表示获取关注我的人
+                queryWrapper.eq("fid",userId);
+            }else if(type==3){
+                // type = 3 表示互相关注（即朋友关系）
+                Set<String> followingIds = this.list(new QueryWrapper<Follower>().eq("uid", userId))
+                        .stream().map(Follower::getFid).collect(Collectors.toSet());
+                queryWrapper.eq("fid",userId).in("uid",followingIds);
+
+            }
+        }else{
+            return new Page<>();
+        }
+
+        // 执行分页查询
+        Page<Follower> followerPage = this.page(page, queryWrapper);
+
+        // 获取查询结果中的用户ID集合
+        Set<String> userIds = followerPage.getRecords().stream().map(Follower::getUid).collect(Collectors.toSet());
+
+        // 查询这些用户的详细信息
+        Map<String, User> userMap = userService.listByIds(userIds).stream().collect(Collectors.toMap(User::getId, user -> user));
+
+        List<FollowerVo> followerVoList = followerPage.getRecords().stream().map(follower ->{
+
+            FollowerVo followerVo = new FollowerVo();
+            User user = userMap.get(follower.getUid());
+            followerVo.setUid(user.getId())
+                    .setUsername(user.getUsername())
+                    .setAvatar(user.getAvatar())
+                    .setTime(follower.getCreateDate().getTime())
+                    .setIsFollow(isFollow(follower.getUid()));
+            return followerVo;
+        }).collect(Collectors.toList());
+
+        Page<FollowerVo> result = new Page<>(currentPage,pageSize);
+        result.setRecords(followerVoList);
+        result.setTotal(followerPage.getTotal());
+        return result;
+
     }
 
     // TODO 需要优化
